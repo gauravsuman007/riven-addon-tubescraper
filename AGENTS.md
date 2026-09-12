@@ -230,3 +230,32 @@ and is the reference for one).
 `riven-tpdb-scrapers` was this repository's `scrapers/` folder until the
 extraction and is now **archived**. Its unique documentation -- the KVS
 decoder, the rejected-site findings above -- was brought here first.
+
+## Never block the event loop
+
+`/stream` is `async def` and the scrapers are synchronous (requests/urllib3).
+Calling `resolve()` directly from it ran the scrape ON THE EVENT LOOP, where
+blocking stops every request the backend is serving -- not just this one --
+for as long as the site takes to answer. A site that has gone away hangs
+rather than refusing, so that is minutes.
+
+Measured: six concurrent requests for a video on an unreachable site took the
+whole Riven API offline (library, playback, settings) at 0.4% CPU, while
+Docker still reported the container healthy because the healthcheck does not
+probe the API -- so nothing restarts it. It presents as "the external player
+opens and buffers forever", which looks like a playback bug and is not.
+
+`/sources` and `/handoff` are plain `def`, which FastAPI already runs in a
+threadpool. **A plain `def` is the safe default for any endpoint here.** Where
+an endpoint must be async, wrap the scrape in `run_in_threadpool`.
+
+## One stream, one rendition
+
+The rendition fallback exists because a site can advertise a rendition its CDN
+does not hold. It must run ONLY on a request with no Range -- that is the
+request actually choosing. Renditions are different files with different
+lengths, so serving a Range out of a shorter one splices two videos together,
+or, far more often, answers 416 for every smaller rendition.
+
+And 416 is passed through, never rebranded 502: a player told 416 re-requests
+from a valid offset, while a player told 502 retries the same request forever.
