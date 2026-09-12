@@ -212,6 +212,31 @@ Likewise **pornslash** and **veporn** were rejected: pornslash exposes only
 `/p/` preview clips (the real URL is fetched by JS), and veporn is a Next.js
 app whose results live in the RSC flight payload.
 
+## 0xxx.ws is a release index, not a tube site
+
+Evaluated 2026-09-12 and **rejected**. It looks like a candidate from the
+outside -- a large, well-maintained catalogue with an excellent search that
+returns exact scene releases with studio, resolution, size and date -- but it
+holds no video at all. Measured:
+
+- Every article's download section is behind an **hCaptcha** ("Show download
+  links", `data-sitekey` on the button), on every article checked across
+  Scenes, Fans and P2P.
+- What the captcha unlocks is **premium file hosts** (keep2share, rapidgator)
+  and a filecrypt DLC container. No magnet, no `.torrent`, no stream.
+- So `resolve()` has nothing to return. A `DirectScraper` that searched it
+  would put cards on the tube panel and on the television that cannot play,
+  which is worse than the site's absence.
+
+Solving the captcha is not on the table -- it is a bot filter, and this
+project does not work around those.
+
+What it *is* good at is release names:
+`RickysRoom.26.09.10.Roxie.Sinner.Episode.XXX.1080p.MP4-NBQ`, keyed by studio
+and date. That is metadata for the matcher, not a scraper for this add-on, and
+it would belong somewhere else entirely if it is ever wanted. Do not add it
+here.
+
 ## Scraped sites move
 
 Expect breakage without warning: markup changes, a JSON endpoint disappears, a
