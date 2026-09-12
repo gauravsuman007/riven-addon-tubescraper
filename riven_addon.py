@@ -58,7 +58,11 @@ class TubeScraperAddon(Addon):
         version="1.0.0",
         # No `nav`: this add-on has no page of its own. It fills the slot the
         # details page offers instead.
-        slots=("details",),
+        # "settings" puts the live scraper list, its order and its toggles in
+        # this add-on's own settings tab, beside the generated form -- which
+        # can only express values to save, not actions against a running
+        # registry.
+        slots=("details", "settings"),
     )
 
     def settings_model(self):
