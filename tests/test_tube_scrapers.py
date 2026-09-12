@@ -532,39 +532,17 @@ check(
     len({p.scraper.key for p in bundled.plugins.values()}) == len(bundled.plugins),
 )
 
-# --- the VPN guard that moved here with base.py -----------------------------
-
-
-def test_every_scraper_request_goes_through_the_routed_session():
-    """Guard the session-level hook.
-
-    Applying the proxy in the scrapers' `_get` helper looks equivalent and is
-    not: iporntv calls `self.session.head` directly to probe a rendition, and
-    that request would go out around the tunnel while everything else went
-    through it. The scraper still works and the video still plays, so nothing
-    looks wrong -- only the exit address is.
-
-    This assertion lived in the host's `test_vpn.py` until `base.py` moved
-    into this repository. It came with the file rather than being dropped,
-    because the host can no longer see the code it guards and a trap this
-    quiet is exactly the kind that returns during a migration.
-    """
-
-    text = (ROOT / "tubescraper_addon" / "base.py").read_text()
-
-    check(
-        "scrapers route through _RoutedSession, not a plain requests.Session",
-        "class _RoutedSession(requests.Session)" in text
-        and "def request(self, method, url, **kwargs)" in text
-        and "self.session = _RoutedSession()" in text,
-    )
-    check(
-        "the VPN is asked per purpose, and failure is not swallowed",
-        "from program.services.vpn import SCRAPING, vpn" in text,
-    )
-
-
-test_every_scraper_request_goes_through_the_routed_session()
+# --- the VPN guard lives with the code it guards ------------------------------
+#
+# There is deliberately no routed-session assertion here. `base.py` is the
+# HOST's (`program/services/scraper_plugins/`), because the OnlyFans add-on
+# writes scrapers against the same contract, so the host's `test_vpn.py`
+# guards it -- once, for both add-ons.
+#
+# This note is not decoration. During the extraction the guard was briefly
+# moved into this file, and it failed here pointing at a path that no longer
+# existed. A guard that quietly moves around during a migration is how the
+# trap it protects against comes back.
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
