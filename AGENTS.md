@@ -12,10 +12,18 @@ anything: `git log --oneline -10`.
 
 - `riven_addon.py` is the whole contract with the host: a manifest, a settings
   model, a router, and nothing else.
-- `tubescraper_addon/` is the framework the scrapers are written against --
-  `base.py` (the contract and the routed session), `models.py`, `plugins.py`
-  (discovery), `ranking.py` (which of a site's results actually match), 
-  `service.py` (the registry and the merge), `router.py` (the API).
+- `tubescraper_addon/` is what is actually about tube sites: `ranking.py`
+  (which of a site's results actually match the title asked for),
+  `service.py` (the registry and the merge), `router.py` (the API),
+  `settings.py` and `config.py`.
+- The scraper contract itself is **the host's**, at
+  `program.services.scraper_plugins` -- `DirectScraper`, the VPN-routed
+  session, the result models and the plugin loader. It is not here because
+  the OnlyFans add-on writes scrapers against the same contract, and an
+  add-on must never depend on another add-on: that one can be disabled or
+  removed underneath it. Vendoring a copy would mean two `_RoutedSession`
+  classes, and a divergence between them would not fail -- it would quietly
+  send this add-on's traffic out of the wrong address.
 - `scrapers/` is the maintained set of sites, loaded from wherever the add-on
   is installed.
 - `ui/` is a prebuilt ESM bundle the host imports at runtime.

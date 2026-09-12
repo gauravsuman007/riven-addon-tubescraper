@@ -29,13 +29,13 @@ if str(ROOT) not in sys.path:
 
 try:
     from tubescraper_addon.service import DirectScraperService, _merge_ranked
-    from tubescraper_addon.base import (
+    from program.services.scraper_plugins.base import (
         parse_count,
         parse_duration,
         resolution_from_dimensions,
         resolution_from_height,
     )
-    from tubescraper_addon.models import DirectSource, DirectVideo
+    from program.services.scraper_plugins.models import DirectSource, DirectVideo
     from tubescraper_addon.ranking import (
         MIN_RELEVANCE,
         MatchTarget,
@@ -436,11 +436,11 @@ print("\nplugin discovery")
 import tempfile
 from pathlib import Path
 
-from tubescraper_addon.plugins import discover_plugins
+from program.services.scraper_plugins.plugins import discover_plugins
 
 GOOD_PLUGIN = '''
-from tubescraper_addon.base import DirectScraper
-from tubescraper_addon.models import DirectVideo, DirectSource
+from program.services.scraper_plugins.base import DirectScraper
+from program.services.scraper_plugins.models import DirectVideo, DirectSource
 
 class ExampleScraper(DirectScraper):
     key = "example"

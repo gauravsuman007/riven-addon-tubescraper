@@ -63,8 +63,8 @@ direct connection -- see AGENTS.md.
 A plugin is one Python file with exactly one `DirectScraper` subclass:
 
 ```python
-from tubescraper_addon.base import DirectScraper
-from tubescraper_addon.models import DirectVideo, DirectSource
+from program.services.scraper_plugins.base import DirectScraper
+from program.services.scraper_plugins.models import DirectVideo, DirectSource
 
 
 class MySiteScraper(DirectScraper):
@@ -79,17 +79,14 @@ class MySiteScraper(DirectScraper):
         ...  # given one of your own video_ids, return its playable renditions
 ```
 
-`tubescraper_addon.base` and `.models` are part of THIS repository, and that
-is the change from when these scrapers lived on their own: a scraper's imports
-used to come from the host application, so a file could only be reasoned about
-inside a running container. They now come from the add-on it ships in.
+`program.services.scraper_plugins` is the HOST's -- the scraper plugin ABI,
+shared with the OnlyFans add-on, which writes scrapers against the same
+contract. It deliberately does not live in this repository: an add-on may
+depend on the host, but must never depend on another add-on, which can be
+disabled or removed underneath it.
 
-A scraper is still only ever *executed* inside a riven-tpdb container -- the
-add-on's own code reaches the host for settings and VPN routing -- so there is
-still nothing to install here and no local test run for a single site. What
-changed is that the contract a scraper is written against now lives beside it,
-and a change to that contract is a change to this repository rather than a
-version skew between two of them.
+So a plugin file is only ever loaded *inside* a riven-tpdb container, where
+those imports already exist, and there is nothing to install here.
 
 `DirectScraper.__init__` gives you `self.session`, a `requests.Session` with
 a real browser User-Agent and, if the user has turned it on, automatic
@@ -141,7 +138,7 @@ you compute in `resolve()` should be either.
 
 ### Helpers worth knowing about
 
-`tubescraper_addon.base` also exports:
+`program.services.scraper_plugins.base` also exports:
 
 - `parse_duration(text)` -- turns `"30:30"`, `"1:02:03"`, `"37m"`, `"12 min"`
   into seconds. Handles the fact that most sites use more than one format

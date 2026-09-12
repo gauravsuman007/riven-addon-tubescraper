@@ -5,12 +5,23 @@ ranking that decides which of a site's results actually match the title you
 are looking at, the search/resolve/playback API, the scrapers themselves, and
 its settings. The host knows only what the manifest below declares.
 
+WHAT IT TAKES FROM THE HOST
+
+The scraper contract itself -- ``DirectScraper``, the routed session, the
+result models and the plugin loader -- is the HOST's
+(``program.services.scraper_plugins``), not this add-on's. Two add-ons write
+scrapers against it, and neither may own what the other depends on: an add-on
+can be disabled or removed, and a dependency between two of them would make
+that removal break something else. What this add-on owns is everything that is
+actually about tube sites -- the ranking, the registry, the API and the
+scrapers themselves.
+
 WHAT THIS ADD-ON DELIBERATELY DOES NOT HAVE
 
 It owns no tables and no Postgres schema. Direct scraping is stateless -- a
 query goes out, results come back, nothing is written down -- so there is
 nothing for an uninstall to clean up beyond the folder itself. ``metadata()``
-and ``migrations_dir()` staying at their ``None`` defaults is the accurate
+and ``migrations_dir()`` staying at their ``None`` defaults is the accurate
 description of that, not an omission.
 
 It also has no page. Its whole user interface is a *section on a title's
@@ -31,7 +42,7 @@ them. Do not make these imports lazy to save startup time.
 
 from program.addons import Addon, AddonManifest
 
-from tubescraper_addon import base, config, models, plugins, ranking, router, service
+from tubescraper_addon import config, ranking, router, service
 from tubescraper_addon.settings import TubeScraperModel
 
 

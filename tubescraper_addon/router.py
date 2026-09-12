@@ -30,7 +30,7 @@ from program.media.item import MediaItem
 from program.services.vpn import SCRAPING, STREAMING, VpnUnavailable, vpn
 
 from tubescraper_addon import config
-from tubescraper_addon.base import BROWSER_HEADERS
+from program.services.scraper_plugins.base import BROWSER_HEADERS
 from tubescraper_addon.service import MatchTarget, describe_scrapers
 from tubescraper_addon.service import reset as reset_direct_service
 from tubescraper_addon.service import service as direct_service
