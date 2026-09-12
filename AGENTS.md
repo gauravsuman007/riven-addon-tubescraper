@@ -220,16 +220,31 @@ returns exact scene releases with studio, resolution, size and date -- but it
 holds no video at all. Measured:
 
 - Every article's download section is behind an **hCaptcha** ("Show download
-  links", `data-sitekey` on the button), on every article checked across
-  Scenes, Fans and P2P.
+  links", sitekey `3bd280a3-fe09-4355-a650-e1dbf4d69e0e`). Checked on 24
+  articles across all five menus, both category families, and four archival
+  IDs back to 250000 -- the gate is on every one of them, old and new.
+- **No player anywhere.** Zero `<video>`, `<iframe>`, `<embed>`, `<source>`,
+  `m3u8`, jwplayer or playerjs across all 24, and no streaming host in the
+  markup -- the only external hosts are imagetwist (screenshots), filecrypt,
+  k2s.cc, hcaptcha and ad links. The `.mp4` strings that look promising are
+  screenshot filenames: `...MP4-P2P.mp4-5.jpg` on imagetwist.
 - What the captcha unlocks is **premium file hosts** (keep2share, rapidgator)
   and a filecrypt DLC container. No magnet, no `.torrent`, no stream.
 - So `resolve()` has nothing to return. A `DirectScraper` that searched it
   would put cards on the tube panel and on the television that cannot play,
   which is worse than the site's absence.
 
-Solving the captcha is not on the table -- it is a bot filter, and this
-project does not work around those.
+**The DLC container is not a way round it.** The "Download DLC" link sits
+outside the captcha form and looks like an unguarded path to the same links.
+It is not: `filecrypt.cc/Container/<id>.html` fetches fine and is itself
+behind **cutcaptcha plus a circle captcha**. Two layers, and the payload at
+the end of both is still rapidgator.
+
+Solving either is not on the table -- they are bot filters, and this project
+does not work around those. Note that this would not be a one-time cost paid
+while writing the scraper: the gate is per article, so a scraper would have to
+defeat a captcha on every result of every search, forever. That is the
+scraper's steady-state job, not its setup.
 
 What it *is* good at is release names:
 `RickysRoom.26.09.10.Roxie.Sinner.Episode.XXX.1080p.MP4-NBQ`, keyed by studio
