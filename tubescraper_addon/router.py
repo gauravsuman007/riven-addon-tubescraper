@@ -21,6 +21,7 @@ from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
@@ -441,8 +442,25 @@ async def direct_stream(
 ) -> StreamingResponse:
     """Resolve and proxy one rendition, passing Range through both ways."""
 
+    """
+    Resolved IN A THREAD, and that is not a detail.
+
+    `resolve()` is a synchronous scrape -- requests/urllib3, a page fetch and
+    per-site retries. This endpoint is `async def`, so calling it directly ran
+    it ON THE EVENT LOOP, where it blocks not just this request but every
+    other request the backend is serving, for as long as the site takes to
+    answer. A site that has gone away does not refuse the connection, it
+    hangs, and across several A records with a retry each that is minutes.
+
+    Measured: six concurrent requests for a video on an unreachable site took
+    the WHOLE API offline -- library browsing, playback, settings -- at 0.4%
+    CPU, with Docker still calling the container healthy because its
+    healthcheck does not probe the API. The sync `/sources` and `/handoff`
+    endpoints never had this problem: FastAPI already runs a plain `def` in a
+    threadpool, which is exactly what this now does explicitly.
+    """
     try:
-        sources = direct_service().resolve(site, video_id)
+        sources = await run_in_threadpool(direct_service().resolve, site, video_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
