@@ -467,13 +467,34 @@ async def direct_stream(
         logger.warning(f"Direct stream blocked, VPN unavailable: {exc}")
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    # The one the caller asked for, then every other rendition in the site's
-    # own order. A site can advertise a rendition its CDN does not actually
-    # hold -- xxxfiles lists a 720p download link, sized, next to a 480p that
-    # works, and the 720p answers "No such file" -- and the user has no way to
-    # tell those apart from the source list. Falling through to the next one
-    # plays the video instead of reporting a failure the site caused.
-    order = [index] + [position for position in range(len(sources)) if position != index]
+    requested_range = request.headers.get("range")
+
+    """
+    Fallback is for CHOOSING a rendition, and that choice is made ONCE.
+
+    The one the caller asked for, then every other rendition in the site's own
+    order. A site can advertise a rendition its CDN does not actually hold --
+    xxxfiles lists a 720p download link, sized, next to a 480p that works, and
+    the 720p answers "No such file" -- and the user has no way to tell those
+    apart from the source list. Falling through to the next one plays the
+    video instead of reporting a failure the site caused.
+
+    But ONLY on a request with no Range. Renditions are different files with
+    different lengths, and a player that sends a Range has already been told
+    one file's length and is addressing bytes inside it. Serving those offsets
+    out of a different, shorter file splices two videos together -- or, far
+    more often, every smaller rendition answers 416 because the offset is past
+    its end. That is exactly what the logs showed, a burst of
+    `(480p: 416; 360p: 416; 240p: 416; 144p: 416)` twice a second for minutes:
+    the player retrying a seek forever and never receiving a byte, which is
+    what "the external player opens and buffers without playing" looks like
+    from the outside.
+    """
+    order = (
+        [index]
+        if requested_range
+        else [index] + [position for position in range(len(sources)) if position != index]
+    )
 
     client = httpx.AsyncClient(follow_redirects=True, timeout=30.0, proxy=proxy)
     upstream = None
@@ -490,8 +511,8 @@ async def direct_stream(
         # per-source headers go on top, because a Referer it set for one CDN
         # is more specific than anything general here.
         headers = {**BROWSER_HEADERS, **candidate.headers}
-        if "range" in request.headers:
-            headers["Range"] = request.headers["range"]
+        if requested_range:
+            headers["Range"] = requested_range
 
         try:
             attempt = await client.send(
@@ -521,6 +542,20 @@ async def direct_stream(
             f"Direct stream failed for {site}:{video_id}; "
             f"no rendition answered ({'; '.join(failures)})"
         )
+
+        """
+        A rejected RANGE is not a server failure, and must not be reported as
+        one. 416 means the offset is past the end of this file, and a player
+        that is told so re-requests from a valid offset; a player told 502
+        treats it as a transient error and retries the SAME request, forever.
+        That retry loop is what filled the log and what the viewer saw as
+        endless buffering, so the upstream's own answer is passed through.
+        """
+        if failures and all(failure.endswith(": 416") for failure in failures):
+            raise HTTPException(
+                status_code=416, detail="That part of the video is past its end"
+            )
+
         raise HTTPException(
             status_code=502, detail="No rendition of this video could be fetched"
         )
