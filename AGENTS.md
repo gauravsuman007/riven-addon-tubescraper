@@ -259,3 +259,29 @@ or, far more often, answers 416 for every smaller rendition.
 
 And 416 is passed through, never rebranded 502: a player told 416 re-requests
 from a valid offset, while a player told 502 retries the same request forever.
+
+## Our CSS is outranked by the host unless the build says otherwise
+
+`ui/postcss.config.js` prefixes every rule this add-on ships with four
+`:not(#\#)` compounds. It is not decoration and it must not be removed.
+
+The host downlevels its Tailwind v4 stylesheet for LG webOS
+(`postcss.config.js` there, `chrome >= 94`), and postcss-preset-env emulates
+`@layer` ordering with **specificity**: Tailwind's preflight, whose subject is
+`*`, comes out at **(4,0,0)** because `:not()` takes its argument's specificity
+and `#\#` is an id. Class-level CSS cannot reach that, so without the prefix
+every declaration of ours that preflight also sets — padding, margin, border, a
+button's background, a heading's font-size — is reset away, while colours and
+`border-radius` survive.
+
+That half-applied state looks precisely like a stylesheet that failed to load,
+and was diagnosed as one twice. It is not: check
+`getComputedStyle(el).padding` against the rule that sets it rather than the
+network tab.
+
+The host cannot fix this for us — it serves `ui/addon.css` verbatim — and it
+cannot stop downleveling either, or webOS 23 renders it with no styles at all.
+
+Keep authoring plain class selectors. The one rule the build must never touch
+is a `@keyframes` selector: prefixing `0%` produces a keyframe that matches
+nothing and kills the animation with no error.
