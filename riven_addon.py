@@ -9,7 +9,7 @@ WHAT IT TAKES FROM THE HOST
 
 The scraper contract itself -- ``DirectScraper``, the routed session, the
 result models and the plugin loader -- is the HOST's
-(``program.services.scraper_plugins``), not this add-on's. Two add-ons write
+(``tubescraper_addon.scraper_api``), not this add-on's. Two add-ons write
 scrapers against it, and neither may own what the other depends on: an add-on
 can be disabled or removed, and a dependency between two of them would make
 that removal break something else. What this add-on owns is everything that is

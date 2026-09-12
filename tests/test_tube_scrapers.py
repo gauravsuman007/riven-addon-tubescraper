@@ -29,13 +29,13 @@ if str(ROOT) not in sys.path:
 
 try:
     from tubescraper_addon.service import DirectScraperService, _merge_ranked
-    from program.services.scraper_plugins.base import (
+    from tubescraper_addon.scraper_api.base import (
         parse_count,
         parse_duration,
         resolution_from_dimensions,
         resolution_from_height,
     )
-    from program.services.scraper_plugins.models import DirectSource, DirectVideo
+    from tubescraper_addon.scraper_api.models import DirectSource, DirectVideo
     from tubescraper_addon.ranking import (
         MIN_RELEVANCE,
         MatchTarget,
@@ -436,11 +436,11 @@ print("\nplugin discovery")
 import tempfile
 from pathlib import Path
 
-from program.services.scraper_plugins.plugins import discover_plugins
+from tubescraper_addon.scraper_api.plugins import discover_plugins
 
 GOOD_PLUGIN = '''
-from program.services.scraper_plugins.base import DirectScraper
-from program.services.scraper_plugins.models import DirectVideo, DirectSource
+from tubescraper_addon.scraper_api.base import DirectScraper
+from tubescraper_addon.scraper_api.models import DirectVideo, DirectSource
 
 class ExampleScraper(DirectScraper):
     key = "example"
@@ -532,17 +532,69 @@ check(
     len({p.scraper.key for p in bundled.plugins.values()}) == len(bundled.plugins),
 )
 
-# --- the VPN guard lives with the code it guards ------------------------------
-#
-# There is deliberately no routed-session assertion here. `base.py` is the
-# HOST's (`program/services/scraper_plugins/`), because the OnlyFans add-on
-# writes scrapers against the same contract, so the host's `test_vpn.py`
-# guards it -- once, for both add-ons.
-#
-# This note is not decoration. During the extraction the guard was briefly
-# moved into this file, and it failed here pointing at a path that no longer
-# existed. A guard that quietly moves around during a migration is how the
-# trap it protects against comes back.
+# --- the scraper ABI: routed session, and drift against the other add-on ----
+
+
+def test_every_scraper_request_goes_through_the_routed_session():
+    """Guard the session-level hook, in this add-on's own copy.
+
+    Applying the proxy in the scrapers' `_get` helper looks equivalent and is
+    not: iporntv calls `self.session.head` directly to probe a rendition, and
+    that request would go out around the tunnel while everything else went
+    through it. The scraper still works and the video still plays, so nothing
+    looks wrong -- only the exit address is.
+
+    Asserted here rather than in the host because the host owns no scraper
+    code: every copy of this contract is an add-on's, and each add-on guards
+    the copy it ships.
+    """
+
+    text = (ROOT / "tubescraper_addon" / "scraper_api" / "base.py").read_text()
+
+    check(
+        "scrapers route through _RoutedSession, not a plain requests.Session",
+        "class _RoutedSession(requests.Session)" in text
+        and "def request(self, method, url, **kwargs)" in text
+        and "self.session = _RoutedSession()" in text,
+    )
+    check(
+        "the VPN is asked per purpose, so routing can fail closed",
+        "from program.services.vpn import SCRAPING, vpn" in text,
+    )
+
+
+def test_the_vendored_copies_have_not_drifted():
+    """This copy must be identical to every other add-on's.
+
+    The failure being prevented is silent: `_RoutedSession` is where the VPN
+    proxy is applied, so two copies that disagree do not break anything
+    visible -- one add-on's traffic simply starts leaving from the wrong
+    address.
+
+    Skips when no other add-on is installed, which is a legitimate state and
+    not something to fail on. On the deployed server both live under
+    /riven/addons and this compares them for real.
+    """
+
+    from tubescraper_addon.scraper_api import drift
+
+    others = drift.siblings()
+
+    if not others:
+        print("  --   no other add-on installed; nothing to compare against")
+        return
+
+    problems = drift.compare()
+
+    check(
+        f"the scraper ABI matches the copy in {', '.join(others)}",
+        not problems,
+        "; ".join(problems),
+    )
+
+
+test_every_scraper_request_goes_through_the_routed_session()
+test_the_vendored_copies_have_not_drifted()
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

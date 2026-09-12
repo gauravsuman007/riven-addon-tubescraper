@@ -63,8 +63,8 @@ direct connection -- see AGENTS.md.
 A plugin is one Python file with exactly one `DirectScraper` subclass:
 
 ```python
-from program.services.scraper_plugins.base import DirectScraper
-from program.services.scraper_plugins.models import DirectVideo, DirectSource
+from tubescraper_addon.scraper_api.base import DirectScraper
+from tubescraper_addon.scraper_api.models import DirectVideo, DirectSource
 
 
 class MySiteScraper(DirectScraper):
@@ -79,7 +79,7 @@ class MySiteScraper(DirectScraper):
         ...  # given one of your own video_ids, return its playable renditions
 ```
 
-`program.services.scraper_plugins` is the HOST's -- the scraper plugin ABI,
+`tubescraper_addon.scraper_api` is the HOST's -- the scraper plugin ABI,
 shared with the OnlyFans add-on, which writes scrapers against the same
 contract. It deliberately does not live in this repository: an add-on may
 depend on the host, but must never depend on another add-on, which can be
@@ -138,7 +138,7 @@ you compute in `resolve()` should be either.
 
 ### Helpers worth knowing about
 
-`program.services.scraper_plugins.base` also exports:
+`tubescraper_addon.scraper_api.base` also exports:
 
 - `parse_duration(text)` -- turns `"30:30"`, `"1:02:03"`, `"37m"`, `"12 min"`
   into seconds. Handles the fact that most sites use more than one format

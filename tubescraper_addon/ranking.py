@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from program.services.scraper_plugins.models import DirectVideo
+from tubescraper_addon.scraper_api.models import DirectVideo
 from program.utils.text_matching import extract_volume, normalise, tokenise
 
 

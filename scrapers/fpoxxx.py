@@ -18,7 +18,7 @@ from urllib.parse import quote, urljoin
 
 from lxml import html as lxml_html
 
-from program.services.scraper_plugins.base import (
+from tubescraper_addon.scraper_api.base import (
     DirectScraper,
     DirectSource,
     DirectVideo,

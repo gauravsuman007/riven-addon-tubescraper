@@ -18,7 +18,7 @@ from urllib.parse import urljoin
 from loguru import logger
 from lxml import html as lxml_html
 
-from program.services.scraper_plugins.base import DirectScraper, DirectSource, DirectVideo
+from tubescraper_addon.scraper_api.base import DirectScraper, DirectSource, DirectVideo
 
 
 _DOWNLOAD_RE = re.compile(

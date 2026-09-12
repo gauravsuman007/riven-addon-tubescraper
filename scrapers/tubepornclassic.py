@@ -9,7 +9,7 @@ The decoder is duplicated from upornia.py rather than imported, deliberately:
 each file here is loaded as an independent plugin (see riven-tpdb's
 `scraper_plugins/plugins.py`), each getting its own isolated module
 namespace with a generated name -- there is no stable `import
-program.services.scraper_plugins.upornia` to reach across to any more once
+tubescraper_addon.scraper_api.upornia` to reach across to any more once
 neither file ships with the app itself. Confirmed live: exactly that import
 is what broke this file the day both became plugins, with
 `ModuleNotFoundError` for a module name the app database never had a
@@ -21,7 +21,7 @@ from urllib.parse import urljoin
 
 from loguru import logger
 
-from program.services.scraper_plugins.base import (
+from tubescraper_addon.scraper_api.base import (
     DirectScraper,
     DirectSource,
     DirectVideo,

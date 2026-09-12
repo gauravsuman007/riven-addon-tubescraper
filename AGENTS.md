@@ -16,14 +16,22 @@ anything: `git log --oneline -10`.
   (which of a site's results actually match the title asked for),
   `service.py` (the registry and the merge), `router.py` (the API),
   `settings.py` and `config.py`.
-- The scraper contract itself is **the host's**, at
-  `program.services.scraper_plugins` -- `DirectScraper`, the VPN-routed
-  session, the result models and the plugin loader. It is not here because
-  the OnlyFans add-on writes scrapers against the same contract, and an
-  add-on must never depend on another add-on: that one can be disabled or
-  removed underneath it. Vendoring a copy would mean two `_RoutedSession`
-  classes, and a divergence between them would not fail -- it would quietly
-  send this add-on's traffic out of the wrong address.
+- `tubescraper_addon/scraper_api/` is the scraper contract -- `DirectScraper`,
+  the VPN-routed session, the result models, the plugin loader. **This
+  repository is its canonical copy**, and riven-addon-onlyfans carries an
+  identical one under its own package name, because add-ons cannot import
+  each other: either can be disabled or removed underneath the other.
+  `scripts/sync-scraper-api.sh` moves changes across; never hand-edit the
+  other copy.
+
+  **The copies are checked, not trusted.** `scraper_api/drift.py` compares
+  them on the deployed machine, where both are installed under `/riven/addons`
+  side by side, and both add-ons' test suites call it. That matters because
+  `_RoutedSession` lives in this package: two copies that disagree break
+  nothing visible, they just send one add-on's scraper traffic out of the
+  wrong address. The checker is inside the synced package deliberately -- kept
+  beside the tests it would be one more pair of files free to rot, and the
+  first thing to rot would be the rot detector.
 - `scrapers/` is the maintained set of sites, loaded from wherever the add-on
   is installed.
 - `ui/` is a prebuilt ESM bundle the host imports at runtime.

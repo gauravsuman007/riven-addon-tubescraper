@@ -13,9 +13,9 @@ from dataclasses import dataclass
 
 from loguru import logger
 
-from program.services.scraper_plugins.base import DirectScraper
-from program.services.scraper_plugins.models import DirectSource, DirectVideo
-from program.services.scraper_plugins.plugins import discover_plugins
+from tubescraper_addon.scraper_api.base import DirectScraper
+from tubescraper_addon.scraper_api.models import DirectSource, DirectVideo
+from tubescraper_addon.scraper_api.plugins import discover_plugins
 from tubescraper_addon.ranking import (
     MatchTarget,
     best_matches,
