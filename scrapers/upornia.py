@@ -19,7 +19,7 @@ from urllib.parse import urljoin
 
 from loguru import logger
 
-from program.services.directscrapers.base import (
+from program.services.scraper_plugins.base import (
     DirectScraper,
     DirectSource,
     DirectVideo,

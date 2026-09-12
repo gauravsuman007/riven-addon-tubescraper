@@ -24,7 +24,7 @@ from urllib.parse import urljoin, urlparse
 from loguru import logger
 from lxml import html as lxml_html
 
-from program.services.directscrapers.base import (
+from program.services.scraper_plugins.base import (
     DirectScraper,
     DirectSource,
     DirectVideo,

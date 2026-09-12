@@ -50,7 +50,7 @@ from urllib.parse import quote
 from curl_cffi import requests as curl_requests
 from loguru import logger
 
-from program.services.directscrapers.base import (
+from program.services.scraper_plugins.base import (
     DirectScraper,
     DirectSource,
     DirectVideo,
