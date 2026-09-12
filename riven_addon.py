@@ -40,9 +40,9 @@ would fail to resolve. Importing everything here puts them all in
 them. Do not make these imports lazy to save startup time.
 """
 
-from program.addons import Addon, AddonManifest
+from program.addons import Addon, AddonManifest, AddonTv
 
-from tubescraper_addon import config, ranking, router, service
+from tubescraper_addon import config, ranking, router, service, tv
 from tubescraper_addon.settings import TubeScraperModel
 
 
@@ -63,12 +63,32 @@ class TubeScraperAddon(Addon):
         # can only express values to save, not actions against a running
         # registry.
         slots=("details", "settings"),
+        # The television gets the same thing the details page gets: a section
+        # on a title, not a screen. `browse` stays false because there is
+        # nothing here to browse -- this add-on has no catalogue, it searches
+        # other people's sites when asked.
+        tv=AddonTv(title=True),
     )
 
     def settings_model(self):
         return TubeScraperModel
 
     def router(self):
+        """One router, with the television's routes mounted inside it.
+
+        Mounted here rather than returned separately so the host keeps a
+        single mount point per add-on: everything this add-on serves lives
+        under `/api/v1/x/tubescraper/`, which is also the prefix `riven-tv`
+        refuses to let a stream path escape from.
+        """
+
+        # Idempotent. `router()` is called once per load today, but mounting
+        # is a side effect and a second call would duplicate every television
+        # route -- which FastAPI accepts silently and answers from whichever
+        # it matches first.
+        if not any(getattr(route, "path", "").startswith("/tv/") for route in router.router.routes):
+            router.router.include_router(tv.router)
+
         return router.router
 
     def start(self) -> None:
