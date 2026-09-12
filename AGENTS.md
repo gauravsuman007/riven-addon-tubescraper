@@ -285,3 +285,29 @@ cannot stop downleveling either, or webOS 23 renders it with no styles at all.
 Keep authoring plain class selectors. The one rule the build must never touch
 is a `@keyframes` selector: prefixing `0%` produces a keyframe that matches
 nothing and kills the animation with no error.
+
+
+## The television is a third surface, and it reads data not markup
+
+`riven-tv` renders for sets running engines from about 2016 and **cannot run
+`ui/addon.js`** — dynamic `import()` is Chromium 63, that target is 53. So
+this add-on answers `tv/title` with plain JSON (`tubescraper_addon/tv.py`) and
+a generic renderer over there draws it. The full contract is `docs/tv.md`.
+
+Two things about it that are easy to undo by accident:
+
+**Send the sections already grouped and already ordered.** The television
+draws them in the order it receives them and sorts nothing. Ranking used to
+happen there, from a copy of `SITE_TIERS` — the third copy, and they drifted,
+and it could never see the site order the user set in the Plugins tab.
+`site_tier()` is the one source now. Do not "helpfully" sort on the other
+side.
+
+**Never raise for a search that went badly.** `riven-tv` treats a non-200 as
+"this section does not appear", so a 502 for three sites out of four failing
+hides the failure completely — the viewer sees nothing and cannot tell it
+from a title no site has. Answer 200 with empty `sections` and a populated
+`problems`.
+
+`browse` stays false in the manifest. There is nothing here to browse: this
+add-on has no catalogue, it searches other people's sites when asked.
