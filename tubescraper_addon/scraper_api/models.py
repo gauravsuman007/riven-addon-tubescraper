@@ -87,6 +87,18 @@ class DirectAccount:
     """``None`` when the site did not say, never zero -- an account shown as
     holding 0 videos reads as empty rather than uncounted."""
     image_count: int | None = None
+    of_username: str | None = None
+    """The performer's username on onlyfans.com, where the site publishes it.
+
+    Most of these archives do not, and `None` means "this site did not say" --
+    never "they have no OnlyFans". A site that does publish it is stating a
+    fact the collapsed handle cannot be guessed back into: `sophia-locke` is
+    `thesophialocke`, and no amount of slug-mangling reaches that.
+
+    IT IS A CANDIDATE, NOT AN ANSWER. The archive is a third party repeating
+    something; the index only records a username once onlyfans.com itself
+    confirms it exists. See `onlyfans_addon/service.py`.
+    """
 
 
 @dataclass(frozen=True, slots=True)
