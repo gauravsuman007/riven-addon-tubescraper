@@ -136,3 +136,19 @@ class DirectImage:
     """Same contract as :class:`DirectSource.headers`. These CDNs 403 without a
     Referer, so an image URL cannot be dropped into an ``<img src>`` either --
     it has to be fetched by something that can set the header."""
+    image_id: str | None = None
+    """Stable per-site id, where the site gives its images one.
+
+    Album images on the KVS family have no id of their own -- they are a
+    position in a page -- so this stays None there and the gallery index
+    identifies them. The post-per-item sites (fapello and its clones) number
+    every item, and a mixed feed has to be able to say *which* item without
+    relying on an ordinal that shifts the moment the performer posts again."""
+    thumbnail: str | None = None
+    """A grid-sized crop, where the site serves one separately.
+
+    A feed of full-size images is several megabytes a screen. Where the site
+    publishes a thumbnail the grid uses it and the full ``url`` is spent only
+    when something is opened."""
+    posted_at: str | None = None
+    """ISO date the site attributes to the item, when it states one."""

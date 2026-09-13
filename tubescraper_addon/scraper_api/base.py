@@ -131,6 +131,30 @@ class DirectScraper(ABC):
 
         return []
 
+    def account_images(self, handle: str, page: int = 1) -> list[DirectImage]:
+        """One page of an account's loose images, newest first.
+
+        SEPARATE FROM `account_galleries` BECAUSE THE SITES ARE SHAPED TWO
+        DIFFERENT WAYS, and collapsing them loses the distinction the screen
+        needs. The KVS family files images into albums: a gallery is a real
+        object with a title and a cover, and `gallery_images` opens one. The
+        post-per-item family (fapello and its clones) has no albums at all --
+        every item is its own post, images and videos interleaved in one
+        reverse-chronological feed, which is what an OnlyFans profile looks
+        like and what a mixed grid is built from.
+
+        Expressing that feed as a gallery per image would mint thousands of
+        one-image albums; expressing it as a single album would throw away
+        paging over a feed that runs to thousands of items.
+
+        A site with albums and no loose images returns nothing here, a site
+        with loose images and no albums returns nothing from
+        `account_galleries`, and a caller that wants "every picture of this
+        performer" asks both.
+        """
+
+        return []
+
     def _get(self, url: str, **kwargs) -> requests.Response:
         kwargs.setdefault("timeout", 20)
         response = self.session.get(url, **kwargs)
