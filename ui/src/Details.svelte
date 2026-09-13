@@ -22,6 +22,7 @@
     import { listBookmarks, addBookmark, removeBookmark } from "./bookmarks.js";
     import { formatBytes, formatDuration } from "./format.js";
     import VpnBanner from "./VpnBanner.svelte";
+    import VpnControls from "./VpnControls.svelte";
 
     let {
         /** Shown in the trigger and the player's title bar. */
@@ -489,6 +490,17 @@
             </span>
         </div>
     {/if}
+
+    <!--
+        The switches, then the consequence.
+
+        The panel is the STATE and how to change it; the banner below is what
+        that state means for the thing about to happen ("searching is blocked
+        rather than falling back"). Both, because a switch alone does not say
+        what it costs, and a sentence alone leaves the reader hunting for the
+        settings page.
+    -->
+    <VpnControls onchange={refreshVpnStatus} />
 
     <!-- One line saying how the search itself is routed. -->
     <VpnBanner

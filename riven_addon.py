@@ -68,6 +68,15 @@ class TubeScraperAddon(Addon):
         # nothing here to browse -- this add-on has no catalogue, it searches
         # other people's sites when asked.
         tv=AddonTv(title=True),
+        # Twenty site scrapers, and nothing the host can call would tell it
+        # so -- it owns no scraper code at all. Declared because the claim
+        # has a consequence: it is what puts this add-on's outbound traffic
+        # in the tunnel the VPN settings configure.
+        #
+        # No `rails()`. This add-on has no catalogue to draw a row from; it
+        # searches other people's sites when a title is opened, which is a
+        # section on that title's page and cannot be a row on Home.
+        capabilities=("scrapers",),
     )
 
     def settings_model(self):

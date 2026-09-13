@@ -50,19 +50,50 @@ export function routeState(status, purpose) {
     };
 }
 
-/** Turn routing off for one purpose -- the escape hatch offered when a routed
- *  tunnel is down and the user would rather search than fix it. */
-export async function disableRoute(purpose) {
+/**
+ * Route one purpose through the tunnel, or stop.
+ *
+ * Written to the HOST's settings, not to anything this add-on owns. There is
+ * one VPN and one pair of switches; a copy here would be a second answer to
+ * the same question, and the settings page and this panel would each be
+ * right about a different one.
+ */
+export async function setRoute(purpose, routed) {
     const path = purpose === "scraping" ? "vpn.route_scraping" : "vpn.route_streaming";
 
     try {
         const response = await fetch(`/api/v1/settings/set/${path}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ [path]: false })
+            body: JSON.stringify({ [path]: routed })
         });
         return response.ok;
     } catch {
         return false;
+    }
+}
+
+/** Turn routing off for one purpose -- the escape hatch offered when a routed
+ *  tunnel is down and the user would rather search than fix it. */
+export const disableRoute = (purpose) => setRoute(purpose, false);
+
+/**
+ * Choose where routed traffic leaves from, and return the host's new status.
+ *
+ * The answer is used rather than discarded because it is the only place a
+ * refusal appears: Gluetun's server is fixed by its own container's
+ * environment, and the host says so in `detail` instead of accepting a choice
+ * that would never take effect.
+ */
+export async function setExitNode(nodeId) {
+    try {
+        const response = await fetch("/api/v1/vpn/exit-node", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ node_id: nodeId })
+        });
+        return response.ok ? await response.json() : null;
+    } catch {
+        return null;
     }
 }
