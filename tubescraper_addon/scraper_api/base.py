@@ -1,6 +1,7 @@
 """Shared plumbing for the direct-site scrapers."""
 
 import re
+import time
 from abc import ABC, abstractmethod
 
 import requests
@@ -66,13 +67,28 @@ class DirectScraper(ABC):
     base_url: str
 
     #: Requests per second. These are small sites being scraped, not APIs with
-    #: a published quota; the limit is politeness, not a rule they enforce.
+    #: a published quota -- but the limit is not merely politeness either.
+    #:
+    #: IT WAS DECLARED AND NEVER APPLIED, and an index walk found the cost:
+    #: fapello served its performer index happily for eleven pages and then
+    #: 403'd every request, including the ones a user was waiting on. The run
+    #: recorded eleven accounts out of thousands and reported success, because
+    #: a 403 partway through a walk is indistinguishable from the end of the
+    #: index.
+    #:
+    #: Enforced in `_get` rather than in `_RoutedSession.request`, deliberately:
+    #: a scraper reaching for `self.session.head` to probe a rendition is
+    #: answering a user in real time, and making that wait behind an index
+    #: walk's budget would add seconds to a click.
     rate_limit: float = 1.0
 
     def __init__(self) -> None:
         self.session = _RoutedSession()
         self.session.headers.update(BROWSER_HEADERS)
         self.initialized = True
+        #: Monotonic stamp of the last `_get`, per instance. The registry keeps
+        #: one instance per site, so this paces that site and no other.
+        self._last_request = 0.0
 
     @abstractmethod
     def search(self, query: str, limit: int = 20) -> list[DirectVideo]:
@@ -157,9 +173,24 @@ class DirectScraper(ABC):
 
     def _get(self, url: str, **kwargs) -> requests.Response:
         kwargs.setdefault("timeout", 20)
+        self._wait_turn()
         response = self.session.get(url, **kwargs)
         response.raise_for_status()
         return response
+
+    def _wait_turn(self) -> None:
+        """Sleep until this scraper is allowed another request."""
+
+        if not self.rate_limit or self.rate_limit <= 0:
+            return
+
+        interval = 1.0 / self.rate_limit
+        elapsed = time.monotonic() - self._last_request
+
+        if elapsed < interval:
+            time.sleep(interval - elapsed)
+
+        self._last_request = time.monotonic()
 
 
 _DURATION_UNITS = {"h": 3600, "m": 60, "s": 1}
