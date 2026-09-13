@@ -37,6 +37,16 @@ class DirectVideo:
     """The site showed an HD badge. Kept separate from ``resolution`` because
     it is a claim rather than a measurement -- the same badge covers 720p and
     4K -- but it still orders a result above one with no quality signal."""
+    description: str | None = None
+    """The site's own paragraph about this video, when it writes one. Very few
+    do: of the archives measured, one in seven. ``None`` means "not known",
+    which includes "not fetched yet" -- a card is built from a grid page and
+    the text usually lives on the video's own page."""
+    posted_at: str | None = None
+    """As the site stated it, verbatim -- "6 days ago", "11 months ago", a
+    date. NOT parsed into a timestamp: these sites use relative wording and
+    resolving it against the moment of scraping would turn an approximation
+    into a false precision that then ages."""
     relevance: float | None = None
     """How well this matched the query, filled in by the ranker. ``None`` on a
     result that has not been scored yet."""

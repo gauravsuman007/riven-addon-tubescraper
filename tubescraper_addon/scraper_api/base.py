@@ -142,6 +142,26 @@ class DirectScraper(ABC):
 
         return []
 
+    #: This site writes a paragraph of text under a video, so a caller that
+    #: draws posts rather than thumbnails has something to draw. Off by
+    #: default because it costs a request per item -- see `video_info` -- and
+    #: a caller must not pay it for sites that would answer nothing.
+    has_post_text: bool = False
+
+    def video_info(self, video_id: str) -> DirectVideo | None:
+        """One video's own page, for the fields a grid card does not carry.
+
+        Only ever the text fields: `description` and `posted_at`. Resolving a
+        playable URL is `resolve`'s job and is deliberately not done here, so
+        that a screen showing captions does not mint expiring links for items
+        nobody played.
+
+        One request per video, which is why `has_post_text` gates it. Returns
+        None when the site has no such page or no text on it.
+        """
+
+        return None
+
     def gallery_images(self, gallery_id: str) -> list[DirectImage]:
         """Every image in one gallery, in the order the site presents them."""
 
