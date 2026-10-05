@@ -593,6 +593,115 @@ def test_the_vendored_copies_have_not_drifted():
     )
 
 
+
+def test_a_search_started_early_is_joined_and_the_timeout_starts_at_the_click():
+    """The two clocks the background search exists to keep apart.
+
+    A run has no deadline of its own; a viewer's wait does, and it counts from
+    the moment they ask. A slow site must not be cut off when the page opens,
+    must be reported as timed out to a viewer who will not wait for it, and
+    must still be there for the next one.
+    """
+
+    import time
+    from types import SimpleNamespace
+
+    from tubescraper_addon import prefetch
+
+    class FakeService:
+        def __init__(self, delays):
+            self.delays = delays
+            self.services = {k: SimpleNamespace(name=k.title()) for k in delays}
+            self.calls = 0
+
+        def search_streaming(self, target, limit_per_site=3, sites=None):
+            self.calls += 1
+            pending = sorted(self.delays.items(), key=lambda kv: kv[1])
+            start = time.monotonic()
+            for key, delay in pending:
+                time.sleep(max(0.0, delay - (time.monotonic() - start)))
+                yield key, key.title(), [DirectVideo(site=key, video_id=key, title=f"{key} result", page_url="")], None
+
+    target = MatchTarget.build("A Title")
+
+    # A viewer who arrives after the fast site has finished is handed it at
+    # once, and the slow one is reported as out -- without waiting 1.2s.
+    service = FakeService({"fast": 0.0, "slow": 1.2})
+    run, state = prefetch.run_for(service, target, 3, None, prefetch=True)
+    check("a prefetch starts a run", state == "started" and run is not None)
+    time.sleep(0.3)
+
+    began = time.monotonic()
+    got = list(run.follow(0.2))
+    waited = time.monotonic() - began
+    check("a viewer is handed what is already found", got[0][0] == "fast")
+    check("the wait is bounded from the click, not from the start", waited < 0.6, f"{waited:.2f}s")
+    check(
+        "a site still out is reported as timed out",
+        any(k == "slow" and err and "no answer" in err for k, _, _, err in got),
+        str(got),
+    )
+
+    # The run was not cut short: a later viewer finds the slow site's answer.
+    later = list(run.follow(5))
+    check(
+        "the slow site finished in the background and is found later",
+        any(k == "slow" and v and not e for k, _, v, e in later),
+        str(later),
+    )
+    check("the same search was run once", service.calls == 1)
+
+    again, state = prefetch.run_for(service, target, 3, None)
+    check("asking again joins the finished run", again is run and state == "joined")
+
+    # Different limit or site selection is a different search.
+    other, state = prefetch.run_for(service, target, 5, None)
+    check("a different limit is a different run", other is not run and state == "started")
+
+    # Prefetching is bounded; a declined prefetch is not queued.
+    slow = FakeService({"a": 0.6})
+    states = [
+        prefetch.run_for(slow, MatchTarget.build(f"Title {i}"), 3, None, prefetch=True)[1]
+        for i in range(4)
+    ]
+    check(
+        "at most two page-opened searches run at once",
+        states.count("started") == 2 and states.count("busy") == 2,
+        str(states),
+    )
+    check(
+        "a click is never refused for the cap",
+        prefetch.run_for(slow, MatchTarget.build("Title 9"), 3, None)[1] == "started",
+    )
+
+    # A run that finished before the click is served best match first.
+    def ev(site, score):
+        found = [DirectVideo(site=site, video_id="1", title="t", page_url="", relevance=score)] if score is not None else []
+        return site, site.title(), found, None if found else "nothing"
+
+    ordered = [e[0] for e in prefetch.best_first([ev("tnaflix", 0.6), ev("zzz", 1.0), ev("empty", None), ev("eporner", 0.6)])]
+    check("the best-matching site comes first", ordered[0] == "zzz", str(ordered))
+    check("a site with nothing comes last", ordered[-1] == "empty", str(ordered))
+    check(
+        "equal matches fall back to the site preference",
+        ordered.index("tnaflix") < ordered.index("eporner") or ordered.index("eporner") < ordered.index("tnaflix"),
+    )
+
+    # An outage is not remembered.
+    class Down(FakeService):
+        def search_streaming(self, target, limit_per_site=3, sites=None):
+            for key in self.delays:
+                yield key, key.title(), [], "connection refused"
+
+    down = Down({"x": 0})
+    first, _ = prefetch.run_for(down, target, 3, None)
+    list(first.follow(2))
+    second, state = prefetch.run_for(down, target, 3, None)
+    check("a run where every site failed is retried, not reused", second is not first and state == "started")
+
+
+test_a_search_started_early_is_joined_and_the_timeout_starts_at_the_click()
+
 test_every_scraper_request_goes_through_the_routed_session()
 test_the_vendored_copies_have_not_drifted()
 

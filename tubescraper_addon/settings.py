@@ -63,6 +63,19 @@ class TubeScraperModel(BaseModel):
             "call."
         ),
     )
+    search_timeout_seconds: int = Field(
+        default=30,
+        ge=5,
+        le=300,
+        description=(
+            "How long a viewer waits, from the moment they press the button, "
+            "for sites that have not answered yet. The search itself starts "
+            "when a title's page opens and has no deadline, so by then most "
+            "sites are already done; this only bounds the wait for the "
+            "stragglers. A site still out when it expires is reported as "
+            "timed out and keeps running, so reopening the title finds it."
+        ),
+    )
     flaresolverr_url: str = Field(
         default="",
         description=(

@@ -121,6 +121,19 @@ to the code that owns the sources. `problems` exists because "nothing found"
 and "four of the eight sites timed out" look identical otherwise, and only one
 of them is worth trying again.
 
+### `GET tv/prefetch?item_id=<riven item id>` (optional)
+
+Start the title's search now, so it is ready when `tv/title` is asked for.
+
+The television calls it when a title's page is drawn and neither waits for the
+answer nor shows it, so it never raises: `{"state": "started" | "joined" |
+"busy" | "blocked"}` is all it says, and an add-on that does not serve the
+route simply answers 404, which costs nothing. The search it starts has **no
+deadline**; the viewer's wait, and its timeout, begin when `tv/title` joins
+that run on a button press. If the run had already finished by then,
+`tv/title` orders its sections best match first (site preference only breaks
+ties) -- while a search still being waited on keeps the preference first.
+
 ### `Card`
 
 ```jsonc

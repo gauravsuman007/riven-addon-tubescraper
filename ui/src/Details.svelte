@@ -13,8 +13,10 @@
     the library. When a scene has no seeded release anywhere -- which for this
     catalogue is common -- this is the difference between watching it and not.
 
-    Collapsed until asked for, because each search hits twenty sites live.
-    Nothing runs on page load except the two cheap reads below.
+    Collapsed until asked for. The search itself starts in the BACKGROUND when
+    this section mounts (the title's page opening), with no deadline, and the
+    button only joins it: by the time it is pressed most sites have answered,
+    and the wait -- with its timeout -- starts then, not at page load.
 -->
 <script>
     import { get, postJson, streamUrl, url } from "./api.js";
@@ -67,6 +69,12 @@
     */
     let pendingSites = $state(0);
     let completedSites = $state(0);
+    /*
+        True when the backend had already finished the search before it was
+        asked for: the sites then arrive in their final order, best match
+        first, and are shown in it rather than re-sorted by site preference.
+    */
+    let ranked = $state(false);
     let eventSource = null;
 
     /*
@@ -108,6 +116,17 @@
     $effect(() => {
         refreshVpnStatus();
         loadBookmarks();
+
+        /*
+            Start this title's search now, so it is ready when asked for.
+            Fire and forget: the answer is not needed here, and a failure is
+            harmless -- the button starts the search itself if nothing is
+            running. The backend refuses it when the scraping route has no
+            tunnel, so this cannot go around the VPN. The params are exactly
+            the ones `search()` sends for an untyped search, which is what
+            makes the click join this run instead of starting another.
+        */
+        get("/prefetch", itemId ? { item_id: itemId } : { query: title });
     });
 
     /*
@@ -203,9 +222,13 @@
         return [...grouped.entries()]
             .map(([site, row]) => ({ site, ...row }))
             .sort((a, b) => {
-                const tierDiff = siteTier(a.site) - siteTier(b.site);
-                if (tierDiff) return tierDiff;
-                return (b.items[0]?.relevance ?? 0) - (a.items[0]?.relevance ?? 0);
+                const byMatch = (b.items[0]?.relevance ?? 0) - (a.items[0]?.relevance ?? 0);
+                const byTier = siteTier(a.site) - siteTier(b.site);
+
+                // A finished search is ordered by how well each site matched,
+                // with the preference only breaking ties; one still arriving
+                // keeps the preference first so rows do not jump under it.
+                return ranked ? byMatch || byTier : byTier || byMatch;
             });
     });
 
@@ -226,6 +249,7 @@
         siteErrors = {};
         pendingSites = 0;
         completedSites = 0;
+        ranked = false;
 
         /*
             A typed term wins over item_id. Passing both would let the backend
@@ -255,6 +279,7 @@
             }
 
             if (data.total_sites) pendingSites = data.total_sites;
+            if (data.ranked) ranked = true;
 
             if (data.event === "site") {
                 completedSites = data.sites_completed ?? completedSites + 1;

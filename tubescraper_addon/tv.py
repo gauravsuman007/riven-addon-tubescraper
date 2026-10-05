@@ -29,7 +29,7 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from starlette.concurrency import run_in_threadpool
 
-from tubescraper_addon import config
+from tubescraper_addon import config, prefetch
 from tubescraper_addon.service import site_tier
 
 router = APIRouter(prefix="/tv", tags=["tubescraper-tv"])
@@ -56,6 +56,21 @@ def _badges(video: Any) -> list[str]:
     ]
 
     return [value for value in out if value]
+
+
+@router.get("/prefetch", operation_id="tubescraper_tv_prefetch")
+def tv_prefetch(item_id: Annotated[int, Query(ge=1)]) -> dict[str, str]:
+    """Start the search for a title now, while its page is still being read.
+
+    Fire-and-forget from the television: it does not wait for the answer and
+    does not show it. The same run is joined by `tv/title` when the viewer
+    presses the button, and only then does the timeout start counting.
+    Plain `def`, so FastAPI runs it in the threadpool (see AGENTS.md).
+    """
+
+    from tubescraper_addon.router import start_prefetch
+
+    return start_prefetch(None, item_id, None, None)
 
 
 @router.get("/title", operation_id="tubescraper_tv_title")
@@ -89,8 +104,16 @@ async def tv_title(
 
     try:
         per_site = config.settings().results_per_site
-        results, errors = await run_in_threadpool(
-            direct.search, target, limit_per_site=per_site
+        # Joins the run the title page started in the background, so a
+        # button press is usually answered from what is already found. The
+        # wait is bounded from now, not from when that run began.
+        results, errors, ready = await run_in_threadpool(
+            prefetch.search_blocking,
+            direct,
+            target,
+            per_site,
+            None,
+            config.settings().search_timeout_seconds,
         )
     except HTTPException:
         raise
@@ -110,9 +133,17 @@ async def tv_title(
     # Tier first, then the best score any of the site's own results reached.
     # `site_tier` reads the user's own ordering where they have set one, so a
     # television agrees with the Plugins tab rather than with a constant.
+    # When the background search had already finished by the time the button
+    # was pressed, the site whose results match best leads and the preference
+    # only breaks ties; while a search is still being waited on, the
+    # preference leads, as before.
     order = sorted(
         grouped.items(),
-        key=lambda pair: (site_tier(pair[0]), -(pair[1][0].relevance or 0)),
+        key=lambda pair: (
+            (-(pair[1][0].relevance or 0), site_tier(pair[0]))
+            if ready
+            else (site_tier(pair[0]), -(pair[1][0].relevance or 0))
+        ),
     )
 
     sections = []

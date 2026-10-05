@@ -22,7 +22,7 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 
@@ -30,7 +30,7 @@ from program.db.db import db_session
 from program.media.item import MediaItem
 from program.services.vpn import SCRAPING, STREAMING, VpnUnavailable, vpn
 
-from tubescraper_addon import config
+from tubescraper_addon import config, prefetch
 from tubescraper_addon.scraper_api.base import BROWSER_HEADERS
 from tubescraper_addon.service import MatchTarget, describe_scrapers
 from tubescraper_addon.service import reset as reset_direct_service
@@ -184,7 +184,13 @@ def direct_search(
 
     selected = [s.strip() for s in sites.split(",")] if sites else None
     per_site = limit if limit is not None else config.settings().results_per_site
-    results, errors = direct_service().search(target, limit_per_site=per_site, sites=selected)
+    results, errors, _ready = prefetch.search_blocking(
+        direct_service(),
+        target,
+        per_site,
+        selected,
+        config.settings().search_timeout_seconds,
+    )
 
     return DirectSearchResponse(
         query=target.title,
@@ -224,6 +230,62 @@ class DirectSearchStreamEvent(BaseModel):
     error: str | None = None
     sites_completed: int = 0
     total_sites: int = 0
+    #: True when the run had already finished, so sites arrive in their final
+    #: order -- best match first -- and the page must keep it.
+    ranked: bool = False
+
+
+def start_prefetch(
+    query: str | None, item_id: int | None, limit: int | None, sites: str | None
+) -> dict[str, str]:
+    """Begin a title's search in the background, if one is worth beginning.
+
+    Shared by this add-on's own route and its television route so the two
+    start the SAME run -- the key is the target, the per-site limit and the
+    site selection, and a click on either surface joins it.
+
+    Never raises for a search that cannot or should not run: the caller is a
+    page that has just opened and has nothing to do with a failure here. A
+    blocked VPN route and a busy queue are answers, not errors. (A missing
+    item is still a 404: that is a bad request, not a condition.)
+    """
+
+    target = _build_target(query, item_id)
+
+    try:
+        _require_vpn()
+    except HTTPException:
+        return {"state": "blocked"}
+
+    selected = [s.strip() for s in sites.split(",")] if sites else None
+    per_site = limit if limit is not None else config.settings().results_per_site
+
+    run, state = prefetch.run_for(
+        direct_service(), target, per_site, selected, prefetch=True
+    )
+
+    return {"state": state, "sites": str(run.total) if run else "0"}
+
+
+@router.get("/prefetch", operation_id="direct_prefetch")
+def direct_prefetch(
+    query: Annotated[str | None, Query(description="Free-text search")] = None,
+    item_id: Annotated[int | None, Query()] = None,
+    limit: Annotated[int | None, Query(ge=1, le=20)] = None,
+    sites: Annotated[str | None, Query()] = None,
+) -> JSONResponse:
+    """Start this title's search now, so it is ready when asked for.
+
+    Called when a title's page opens. Idempotent and cheap to repeat: the same
+    target joins the run already under way or already finished. A GET because
+    it only warms a cache and a television can only ask that way, but marked
+    uncacheable -- a cached "started" would mean nothing started.
+    """
+
+    return JSONResponse(
+        start_prefetch(query, item_id, limit, sites),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/search_stream", operation_id="direct_search_stream")
@@ -268,9 +330,19 @@ def direct_search_stream(
         completed = 0
 
         try:
-            for key, name, videos, error in service.search_streaming(
-                target, limit_per_site=per_site, sites=selected
-            ):
+            # Joins the run the page opening started (or starts one). The
+            # timeout counts from here, not from when that run began.
+            run, _ = prefetch.run_for(service, target, per_site, selected)
+
+            # Finished before the click: nothing is still arriving, so the
+            # sites go out already in their final order, best match first,
+            # and `ranked` tells the page not to re-sort them by preference.
+            ranked = run.done
+            events = run.follow(config.settings().search_timeout_seconds)
+            if ranked:
+                events = iter(prefetch.best_first(list(events)))
+
+            for key, name, videos, error in events:
                 completed += 1
                 event = DirectSearchStreamEvent(
                     event="site",
@@ -296,6 +368,7 @@ def direct_search_stream(
                     error=error,
                     sites_completed=completed,
                     total_sites=total,
+                    ranked=ranked,
                 )
                 yield f"data: {event.model_dump_json()}\n\n"
         except Exception as exc:

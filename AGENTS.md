@@ -450,6 +450,34 @@ or, far more often, answers 416 for every smaller rendition.
 And 416 is passed through, never rebranded 502: a player told 416 re-requests
 from a valid offset, while a player told 502 retries the same request forever.
 
+## The search starts when the page opens, and the timeout starts at the click
+
+`prefetch.py` owns this and both surfaces use it: the details slot calls
+`GET prefetch` on mount, riven-tv calls `tv/prefetch` when a title page is
+drawn. Opening a title starts its search in a background thread with **no
+deadline**; the button then *joins* that run (`run_for` keys it on the target,
+per-site limit and site selection, so the click finds the page-open's run) and
+only at that moment does `search_timeout_seconds` begin. Sites still out when
+it expires are reported as timed out to that viewer and keep running, so the
+next open finds them.
+
+Things that are easy to undo by accident:
+
+* **The two surfaces must send the same key.** The details slot passes
+  `item_id` or `query: title` exactly as `search()` does for an untyped
+  search; a different limit or site list is a different run and the click
+  would start a second search instead of joining.
+* **A finished run is served best match first** (`best_first`, `ranked: true`
+  on the stream events, and the same rule in `tv/title`). A run still being
+  waited on keeps site preference first so rows do not jump under the viewer.
+  Preference (`site_tier`) is the tie-break, not discarded.
+* **Prefetch is bounded on purpose** (two page-opened runs at once, declined
+  rather than queued; a run where every site failed is not cached). Raising
+  those caps turns flicking through a library into a flood of requests to
+  other people's sites.
+* **It must not go round the VPN rule.** `start_prefetch` answers `blocked`
+  when the scraping route has no tunnel and starts nothing.
+
 ## Our CSS is outranked by the host unless the build says otherwise
 
 `ui/postcss.config.js` prefixes every rule this add-on ships with four
