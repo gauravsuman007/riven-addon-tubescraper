@@ -162,8 +162,8 @@ different.
 
 ## Most of these sites are the same CMS (KVS), and that is the shortcut
 
-Eight of the plugins here (`porntrex`, `watchporn`, `whoreshub`, `xxxtube`,
-`pornwex`, `yespornvip`, `inxxx`, `saintporn`, plus the older `fpoxxx`) are
+Nine of the plugins here (`porntrex`, `watchporn`, `whoreshub`, `xxxtube`,
+`pornwex`, `yespornvip`, `inxxx`, `saintporn`, `neporn`, plus the older `fpoxxx`) are
 Kernel Video Sharing deployments. Recognising it saves most of the work on the
 next tube site:
 
@@ -211,6 +211,37 @@ actually carries a playable URL.
 Likewise **pornslash** and **veporn** were rejected: pornslash exposes only
 `/p/` preview clips (the real URL is fetched by JS), and veporn is a Next.js
 app whose results live in the RSC flight payload.
+
+## theporndude "full porn movies" triage (2026-10-05)
+
+All 89 sites on theporndude.com/full-porn-movies-sites were probed with
+`curl_cffi` (`impersonate="chrome"`), which clears the Cloudflare front on most
+of them -- the earlier "blocked" notes were mostly about the player, not the
+front. The bar for a scraper is **long content with a media URL in plain
+reach**, judged by the durations the search grid actually shows.
+
+Added: `neporn` (KVS, up to ~90 min), `trendyporn` (one signed mp4, 20-55 min
+releases), `pornxp` (pxp.news, 360/720/1080 mp4, up to 1h+), `pornoflix`
+(cdn.veporn.com mp4, 48-82 min episodes -- the veporn catalogue without the
+RSC payload, because this front server-renders `/search?q=`).
+
+Built and then dropped on the length bar: `fapgoat` and `xmegadrive` work
+(KVS) but their results are 5-30 minute scenes. Skipped as scene-length or
+cam content: `porngo` (xxxfiles' sibling, mostly <10 min), `thepornarea`
+(cam recordings), `8kporner`, `4k69`.
+
+**Still hoster-embedded** (dood, loadvid, streamtape...): `pornhd3x`/`pornhd8k`/
+`pornhd4k`, `pornbusy`, `porn4days`, `xmoviesforyou`, `allpornstream`. The new
+bot-gate permissions do not change this -- it is not a gate, it is that each
+hoster needs its own extractor. Worth doing only as a deliberate project.
+
+**Parked leads**: `fullporner.com` plays from `xiaoshenke.net`; its player is
+pure arithmetic (reverse the id, expand the quality bitmask 14 = 480/720/1080,
+request `/vid/<reversed id>/<height>` which 302s to a tokenised
+`v5.xiaoshenke.net/s0/...`), but that CDN answered 403/404 to every header and
+cookie set tried from a residential address. Retry from the container.
+`xtapes.tw` (up to 2h12 in the grid) and `porndish.com` (video page 403s to
+`curl_cffi`) were not resolved; porndish likely needs FlareSolverr.
 
 ## 0xxx.ws is a release index, not a tube site
 
