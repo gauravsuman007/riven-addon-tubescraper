@@ -63,3 +63,14 @@ class TubeScraperModel(BaseModel):
             "call."
         ),
     )
+    flaresolverr_url: str = Field(
+        default="",
+        description=(
+            "Address of a FlareSolverr instance, e.g. `http://192.168.2.100:8191`. "
+            "A few sites (xfreehd) sit behind a Cloudflare challenge that only a "
+            "real browser engine passes; with this set, the add-on has "
+            "FlareSolverr clear the challenge once and reuses the result for "
+            "twenty minutes. Leave empty to skip those sites -- they are then "
+            "reported as blocked rather than silently returning nothing."
+        ),
+    )

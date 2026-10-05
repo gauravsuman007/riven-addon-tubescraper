@@ -20,6 +20,7 @@ must not import each other (see this repo's AGENTS.md).
 import re
 from urllib.parse import urljoin, urlparse, urlunparse
 
+import requests
 from loguru import logger
 from lxml import html as lxml_html
 
@@ -45,7 +46,15 @@ class SaintPornScraper(DirectScraper):
     base_url = "https://saintporn.com"
 
     def search(self, query: str, limit: int = 20) -> list[DirectVideo]:
-        response = self._get(f"{self.base_url}/search/", params={"q": query})
+        try:
+            response = self._get(f"{self.base_url}/search/", params={"q": query})
+        except requests.HTTPError as exc:
+            # KVS answers "nothing matched" with a 404 carrying a normal page.
+            # Raising reported a working site as down for any query it simply
+            # had no match for ("brazzers" 404s; "milf" is 200 with 22 hits).
+            if exc.response is not None and exc.response.status_code == 404:
+                return []
+            raise
         tree = lxml_html.fromstring(response.text)
 
         videos: list[DirectVideo] = []

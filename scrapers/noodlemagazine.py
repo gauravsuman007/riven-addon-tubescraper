@@ -74,6 +74,27 @@ _LENGTH = "long"
 _PAGE_SIZE = 24
 
 
+def _title(attributes: str) -> str:
+    """The card's title, English where the site supplies a translation.
+
+    Titles are no longer element text: they sit in ``data-video-title-base``
+    (as uploaded, often Russian) with a JSON map of translations beside it.
+    The ranker matches English titles, so the ``en`` entry wins.
+    """
+
+    translations = re.search(r'data-video-title-translations="([^"]*)"', attributes)
+    if translations:
+        try:
+            english = json.loads(html.unescape(translations.group(1))).get("en")
+        except (json.JSONDecodeError, AttributeError):
+            english = None
+        if english:
+            return english.strip()
+
+    base = re.search(r'data-video-title-base="([^"]*)"', attributes)
+    return html.unescape(base.group(1)).strip() if base else ""
+
+
 class NoodleMagazineScraper(DirectScraper):
     key = "noodlemagazine"
     name = "NoodleMagazine"
@@ -142,15 +163,22 @@ class NoodleMagazineScraper(DirectScraper):
 
         videos: list[DirectVideo] = []
 
-        for item_html in html_text.split('<div class="item">')[1:]:
+        # The opening tag carries attributes now (``data-video-title-base``,
+        # ``data-video-title-translations``), so splitting on the bare
+        # ``<div class="item">`` found nothing and every search returned
+        # empty while looking healthy. Split on the tag, attributes allowed.
+        pieces = re.split(r'<div class="item"([^>]*)>', html_text)
+
+        for attributes, item_html in zip(pieces[1::2], pieces[2::2]):
             href_match = re.search(r'href="(/watch/[^"]+)"', item_html)
             if not href_match:
                 continue
             href = href_match.group(1)
             video_id = href.rsplit("/", 1)[-1]
 
-            title_match = re.search(
-                r'<div class="title">([^<]*)</div>', item_html
+            title_match = re.search(r'<div class="title">([^<]*)</div>', item_html)
+            title = _title(attributes) or (
+                html.unescape(title_match.group(1).strip()) if title_match else ""
             )
             thumb_match = re.search(r'data-src="([^"]+)"', item_html)
             duration_match = re.search(
@@ -168,10 +196,7 @@ class NoodleMagazineScraper(DirectScraper):
                 DirectVideo(
                     site=self.key,
                     video_id=video_id,
-                    title=html.unescape(
-                        title_match.group(1).strip() if title_match else ""
-                    )
-                    or "Untitled",
+                    title=title or "Untitled",
                     page_url=self.base_url + href,
                     thumbnail=(
                         html.unescape(thumb_match.group(1)) if thumb_match else None

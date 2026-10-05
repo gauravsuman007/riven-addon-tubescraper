@@ -1,4 +1,13 @@
-"""xfreehd.com -- server-rendered, and the simplest of the three.
+"""xfreehd.com -- server-rendered, but behind a Cloudflare managed challenge.
+
+Since 2026-10 every page answers 403 "Just a moment..." to ``self.session``
+**and** to every ``curl_cffi`` impersonation profile (chrome, chrome131,
+safari17_0, firefox, from a residential address and from the server alike),
+so the TLS-fingerprint route that works for ``noodlemagazine`` does not apply.
+It is cleared through FlareSolverr (``tubescraper_addon.solver``): one solve
+per twenty minutes, then ordinary requests carrying ``cf_clearance`` and the
+solver's User-Agent. Only pages are gated -- the media host ``lb.xfreehd.com``
+streams to anyone -- so no cookie has to ride along on a ``DirectSource``.
 
 Search results are plain HTML and the video page carries unsigned ``<source>``
 tags, so nothing here needs a browser or a token dance. The one trap is the
@@ -15,6 +24,7 @@ import requests
 from loguru import logger
 from lxml import html as lxml_html
 
+from tubescraper_addon import solver
 from tubescraper_addon.scraper_api.base import (
     DirectScraper,
     DirectSource,
@@ -36,7 +46,8 @@ class XFreeHDScraper(DirectScraper):
 
     def search(self, query: str, limit: int = 20) -> list[DirectVideo]:
         try:
-            response = self._get(
+            response = solver.solved_get(
+                self,
                 f"{self.base_url}/search",
                 params={"search_query": query, "search_type": "videos"},
             )
@@ -102,7 +113,7 @@ class XFreeHDScraper(DirectScraper):
         return videos
 
     def resolve(self, video_id: str) -> list[DirectSource]:
-        response = self._get(f"{self.base_url}/video/{video_id}/-")
+        response = solver.solved_get(self, f"{self.base_url}/video/{video_id}/-")
         tree = lxml_html.fromstring(response.text)
 
         sources: list[DirectSource] = []
