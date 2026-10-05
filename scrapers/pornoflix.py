@@ -46,6 +46,19 @@ class PornoFlixScraper(DirectScraper):
     base_url = "https://pornoflix.com"
 
     def search(self, query: str, limit: int = 20) -> list[DirectVideo]:
+        # The site ANDs every token literally, and punctuation counts: the
+        # title "Brazzers house 4, episode 1" is not found by "brazzers house
+        # 4 episode 1". A library title is usually wordier than the site's,
+        # so when nothing matches, drop trailing words (never below two) and
+        # let the central ranker discard what is not the title asked for.
+        words = query.split()
+        while True:
+            videos = self._search_once(" ".join(words), limit)
+            if videos or len(words) <= 2:
+                return videos
+            words.pop()
+
+    def _search_once(self, query: str, limit: int) -> list[DirectVideo]:
         response = self._get(f"{self.base_url}/search", params={"q": query})
         tree = lxml_html.fromstring(response.text)
 
