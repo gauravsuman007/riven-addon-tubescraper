@@ -252,6 +252,125 @@ and date. That is metadata for the matcher, not a scraper for this add-on, and
 it would belong somewhere else entirely if it is ever wanted. Do not add it
 here.
 
+## What you are allowed to do to get a site working
+
+The full catalogue of techniques, recurring gate shapes and dead ends is in
+[STRATEGIES.md](STRATEGIES.md); read it before reverse-engineering anything and add to it
+whenever you learn something.
+
+The maintainer's standing policy, carried over from the sibling live-TV and VOD
+scraper repos where it produced the working scrapers: **a site that does not
+hand over its media in plain HTML is not a reason to give up, and none of the
+following needs asking first.** Try the cheap routes before the heavy ones,
+and write down in the file what was tried and why (see "Explain *why*" above).
+
+**Order of attack, cheapest first**
+
+1. Read what the real page does before assuming a gate. Many "browser-only"
+   sites are a JSON API behind a click, or have the media list inlined in the
+   server-rendered page (Next.js flight data `self.__next_f.push([1,"..."])`,
+   an inline `window.x = {...}`, a `data-links` attribute). Log every request
+   and response of the real page, not just `/api/`: half of one protocol was a
+   Next.js server action (`POST` to the page URL with a `next-action` header).
+2. Grep the site's bundle for the endpoint, the key, the base URL. Static keys
+   and API roots are usually literals; re-read them when decryption starts
+   failing (they rotated).
+3. Run the site's code to learn what it does instead of decoding it by hand.
+4. Check that the result is something a player can use: fetch the playlist,
+   a segment, and decode a few seconds. **Never trust a plausible URL**: a
+   site can answer a stale handshake with a looping decoy video, list a master
+   whose segments all 403, or serve PNG-prefixed segments.
+
+**Cloudflare, Turnstile, Anubis and other bot gates: bypassing is allowed.**
+Use whatever works, in this order of effort:
+
+- `curl_cffi` with a browser `impersonate=` profile (a TLS/HTTP2 fingerprint
+  gate often needs only that; this is what the Cloudflare-gated plugins here
+  already do). Also try a different `impersonate` version, HTTP/1.1 vs 2, and
+  the exact header order a real browser sends.
+- A real browser: Playwright/Patchright/nodriver/undetected-chromedriver, or
+  Camoufox. Stock headless Chromium does NOT clear a managed challenge or
+  Turnstile (it fingerprints CDP and `navigator.webdriver`); a patched build
+  does. Downloading and installing such a build, for research or in the
+  container, is allowed.
+- [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr)
+  (`docker run -p 8191:8191 ghcr.io/flaresolverr/flaresolverr`; `POST /v1`
+  with `{"cmd":"request.get","url":"...","maxTimeout":60000}`) returns cleared
+  cookies, the User-Agent it solved with, and the body. A shipped plugin MAY
+  call a FlareSolverr the deployment provides (read its URL from the plugin's
+  settings, never hard-code a host); `cf_clearance` is tied to the solving
+  IP and User-Agent, so fetch the media with the same cookies, UA and egress.
+- Solve the gate yourself: proof-of-work (check the real hash; it is often
+  not plain SHA-256), device-attestation endpoints that only *score* a client
+  profile (a made-up desktop profile and a fresh key often passes), cookie
+  hand-offs between a site's own API and its embed.
+- A different front or mirror of the same catalogue (same CDN, same
+  rendition ladder and duration gives it away) that is not behind the gate.
+- Limit: this is about bot detection and browser checks. It is not licence to
+  break into accounts, defeat a paywall with someone else's credentials, or
+  use stolen keys; a source that needs a login the user has not given is
+  blocked, not bypassed.
+
+**Reverse engineering is allowed, including running the site's own code.**
+
+- Download the bundle and run it. In the container that means `node` (or
+  `quickjs`/`py_mini_racer`/`js2py` when Node is not available) via a
+  subprocess, with browser globals stubbed just enough (`document`, `window`,
+  `crypto`, `TextEncoder`, `URL`, a `fetch` that throws the full request so you
+  can read it). Function declarations survive a script that throws partway
+  through; `const`/`let` do not. Use `jsdom` when the app must really mount
+  (`Object.defineProperty(window, "crypto", ...)`, plain assignment silently
+  fails).
+- Shipping a plugin that downloads the site's player code at resolve time and
+  runs it is allowed when no native route exists. Run only the code of the
+  site being scraped, cap the number and size of scripts, give every run a
+  timeout, run in a subprocess (not in the app's own interpreter), expose no
+  secrets of the app to it, serialise runs, cache the built runtime for the
+  deploy, locate entry points by stable shape (`indexOf` on a string literal
+  or key sequence) rather than minified names, and return empty (never guess)
+  the moment a shape is missing. Treat its output as untrusted: only `http(s)`
+  URLs, verified like any other result. Say in the docstring what it runs, how
+  it is found, and what would make it return empty.
+- Hook `crypto.subtle` (digest, importKey, encrypt/decrypt, exportKey) and
+  log a stack trace for each call: that turns "reverse-engineer a signing
+  scheme" into "read the log". Replay a captured request verbatim with `curl`
+  (`--data-binary @file`; shell quoting mangles base64) before porting.
+- WASM: load the `.wasm` in Node or `wasmtime`, wrap `WebAssembly.instantiate`
+  to hand the page a substitute instance and dump linear memory around each
+  call, disassemble with `wasm2wat`, scan memory for keys, instrument an
+  internal function through an unused import. A module with imports into
+  canvas/`navigator` often only feeds an anti-bot check around a pure
+  computation; recover the algorithm and port it. Prefer a native
+  reimplementation in the plugin; shipping a zero-import module that only
+  computes is acceptable.
+- Recurring shapes worth recognising: AES-GCM envelopes with a static key or a
+  key derived from the date/request (`SHA-256(salt|path|token)`), custom base64
+  alphabets, ROT13 plus character shifts, XOR-then-encrypt, seeded keystreams,
+  hour-derived salts (vary the clock before trusting a constant), single-use
+  challenges that must repeat the whole handshake, rotating embed domains.
+- Observe a working front-end instead of reading it: let it search and read
+  `performance.getEntriesByType('resource')`; many apps push every upstream
+  call through their own relay with the destination URL-encoded.
+
+**Network blocks and geoblocks: working around them is allowed.** DNS-level
+blocks by the ISP (use DoH), region locks (send the market/country parameter or
+cookie the site's own client sends, an `X-Forwarded-For`/`CF-IPCountry`-style
+header, or go out through a VPN, SOCKS/HTTP proxy or a remote shell in the right
+country). `self.session` already honours the user's VPN setting. When curl
+returns 200 and Python gets 403 with identical headers, suspect the TLS
+handshake (use `curl_cffi`, or cap at TLS 1.2), not the headers.
+
+**Tokens and IPs.** A signed URL can be bound to the resolving network
+(`asn=`, an IP in the token). Resolve at play time, from the deployment's own
+egress, and test inside the real container (`docker exec <riven container> python3 ...`)
+before calling a source fixed; a resolve that works on a laptop can return
+nothing from a datacentre address.
+
+**Dead ends are recorded, not repeated.** When an approach fails for a reason
+that is architectural (the media is a per-segment transform, a Widevine/DRM
+stream, a login), say so in the plugin's docstring with the date, so the next
+attempt starts from there. Retry a dead end when the site's bundle changes.
+
 ## Scraped sites move
 
 Expect breakage without warning: markup changes, a JSON endpoint disappears, a
